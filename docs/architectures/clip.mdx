@@ -1,0 +1,130 @@
+---
+title: 'Vanilla CLIP Architecture'
+description: 'Deep dive into the original Contrastive Language-Image Pre-training implementation'
+---
+
+# Vanilla CLIP (Contrastive Language-Image Pre-training)
+
+CLIP is a neural network trained on a variety of (image, text) pairs to efficiently learn visual concepts from natural language supervision. It can be applied to any visual classification benchmark by simply providing the names of the visual categories to be recognized, similar to the "zero-shot" capabilities of GPT-2 and GPT-3.
+
+## Core Architecture
+
+The vanilla CLIP model consists of two main encoders that project images and text into a shared embedding space:
+
+### Image Encoder
+- **Vision Transformer (ViT)** or **ResNet** backbone
+- Processes images into feature representations
+- Projects to shared embedding dimension
+
+### Text Encoder  
+- **Transformer-based** text encoder
+- Processes tokenized text into contextual representations
+- Projects to shared embedding dimension (same as image encoder)
+
+## Training Objective
+
+CLIP learns by maximizing the cosine similarity between correct image-text pairs while minimizing it for incorrect pairs using a symmetric cross-entropy loss:
+
+```python
+# Simplified training objective
+logits_per_image = image_features @ text_features.T / temperature
+logits_per_text = text_features @ image_features.T / temperature
+
+loss_i = cross_entropy(logits_per_image, labels)
+loss_t = cross_entropy(logits_per_text, labels)
+loss = (loss_i + loss_t) / 2
+```
+
+## Implementation Details
+
+Our vanilla CLIP implementation in [`arch/clip/base_clip.py`](arch/clip/base_clip.py) follows the original paper:
+
+### Key Parameters
+- **Embedding dimension**: 512
+- **Image resolution**: 224x224  
+- **Context length**: 77 tokens
+- **Temperature**: Learnable parameter τ
+
+### Architecture Variants
+1. **ResNet-based**: Uses ResNet50 as vision backbone
+2. **ViT-based**: Uses Vision Transformer (ViT-B/32, ViT-B/16, ViT-L/14)
+
+## Zero-Shot Classification
+
+CLIP's main strength is zero-shot classification without task-specific training:
+
+```python
+# Zero-shot classification example
+image_features = model.encode_image(image)
+text_features = model.encode_text(["a photo of a cat", "a photo of a dog"])
+
+# Calculate similarities
+similarities = image_features @ text_features.T
+predictions = similarities.softmax(dim=-1)
+```
+
+## Training Process
+
+<Steps>
+  <Step title="Data Collection">
+    Train on 400M image-text pairs from the internet
+  </Step>
+  <Step title="Contrastive Learning">
+    Learn to match correct image-text pairs in a batch
+  </Step>
+  <Step title="Joint Training">
+    Train both encoders simultaneously end-to-end
+  </Step>
+  <Step title="Evaluation">
+    Test zero-shot performance on downstream tasks
+  </Step>
+</Steps>
+
+## Performance Benchmarks
+
+Vanilla CLIP achieves strong zero-shot performance:
+
+| Model | Dataset | Zero-shot Top-1 | Zero-shot Top-5 |
+|-------|---------|-----------------|-----------------|
+| CLIP ResNet-50 | ImageNet | 59.6% | 86.5% |
+| CLIP ViT-B/32 | ImageNet | 63.2% | 88.8% |
+| CLIP ViT-B/16 | ImageNet | 68.3% | 90.8% |
+| CLIP ViT-L/14 | ImageNet | 75.5% | 94.9% |
+
+## Code Example
+
+```python
+from arch.clip.base_clip import CLIP
+
+# Initialize vanilla CLIP
+model = CLIP(
+    embed_dim=512,
+    image_resolution=224,
+    vision_layers=12,
+    vision_width=768,
+    context_length=77,
+    vocab_size=49408,
+    transformer_width=512,
+    transformer_heads=8,
+    transformer_layers=12
+)
+
+# Forward pass
+with torch.no_grad():
+    image_features = model.encode_image(images)
+    text_features = model.encode_text(texts)
+    
+    # Normalize features
+    image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+    text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+    
+    # Calculate similarity
+    similarity = (100.0 * image_features @ text_features.T).softmax(dim=-1)
+```
+
+## Key Insights
+
+- **Scalable Learning**: Natural language supervision scales better than manual labels
+- **Zero-shot Transfer**: Strong generalization to unseen tasks without fine-tuning  
+- **Flexible Interface**: Can handle arbitrary text descriptions as class names
+- **Robust Representations**: Learns generalizable visual and textual features
