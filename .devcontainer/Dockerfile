@@ -41,6 +41,8 @@ RUN pip install --no-cache-dir \
     "openai" \
     "sentence-transformers" \
     "metaphone" \
+    "pytorch_lightning" \
+    "datasets" \
     && python -m spacy download pl_core_news_sm
 
 WORKDIR /workspace

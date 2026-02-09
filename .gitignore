@@ -54,3 +54,4 @@ data/
 tmp/
 *.env
 
+WANDDB_KEY
